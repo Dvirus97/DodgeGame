@@ -13,7 +13,7 @@ namespace DodgeGame
     internal class Logic
     {
         public Board brd { get; set; }
-        public DispatcherTimer timer { get; set; }
+        public List<DispatcherTimer> timer { get; set; }
         public Canvas cnvs { get; set; }
         public Grid MasterGrid { get; set; }
         Button resumeBtn { get; set; }
@@ -34,12 +34,21 @@ namespace DodgeGame
         {
             cnvs.Children.Clear();
             brd = new Board(MasterGrid);
-            timer = new DispatcherTimer();
-            timer.Interval = new TimeSpan(0, 0, 0, 0, 10);
-            timer.Tick += Timer_Tick;
-            timer.Start();
+            timer = new List<DispatcherTimer>();    
+            DispatcherTimer t1 = new DispatcherTimer();
+            DispatcherTimer t2 = new DispatcherTimer();
+            t1.Interval = new TimeSpan(0, 0, 0, 0, 10);
+            t1.Tick += Timer_Tick;
+            timer.Add(t1);
+
+            t2.Interval = new TimeSpan(0, 0, 0, 5, 0);
+            t2.Tick += PowerMove_Tick; ;
+            timer.Add(t2);
+            timer.ForEach(t => t.Start());
             enemyCountTbl.Text = $"Enemies : {brd.Enemies.Count}";
         }
+
+      
 
         private void Timer_Tick(object sender, object e)
         {
@@ -111,40 +120,46 @@ namespace DodgeGame
 
         private void CheckHit()
         {
-            if (brd.SameLocation(brd.Player, out Enemy enemy1))
+            GamePiece target;
+            if (brd.SameLocation(brd.Player, brd.Enemies, out target))
             {
-                if (enemy1 != null)
+                if (target != null)
                 {
-                    cnvs.Children.Remove(enemy1.Shape);
-                    brd.Enemies.Remove(enemy1);
+                    cnvs.Children.Remove(target.Shape);
+                    brd.Enemies.Remove(target);
                     brd.Player.Lives--;
                     if (brd.Player.Lives <= 0)
                     {
-                        PrintMessage("Game Over","You Lose");
+                        PrintMessage("Game Over", "You Lose");
                         resumeBtn.IsEnabled = false;
                     }
                     if (brd.Enemies.Count <= 1)
                     {
-                        PrintMessage("Game Over","You Win");
+                        PrintMessage("Game Over", "You Win");
                         resumeBtn.IsEnabled = false;
                     }
                 }
             }
-            else
-                for (int i = 0; i < brd.Enemies.Count; i++)
+            for (int i = 0; i < brd.Enemies.Count; i++)
+            {
+                if (brd.SameLocation(brd.Enemies[i], brd.Enemies, out target))
                 {
-                    if (brd.SameLocation(brd.Enemies[i], out Enemy e))
+                    cnvs.Children.Remove(brd.Enemies[i].Shape);
+                    brd.Enemies.Remove(brd.Enemies[i]);
+                    brd.Enemies.ForEach(enemy => enemy.Speed += speedDifficulty);
+                    if (brd.Enemies.Count <= 1)
                     {
-                        cnvs.Children.Remove(brd.Enemies[i].Shape);
-                        brd.Enemies.Remove(brd.Enemies[i]);
-                        brd.Enemies.ForEach(enemy => enemy.Speed += speedDifficulty);
-                        if (brd.Enemies.Count <= 1)
-                        {
-                            PrintMessage("Game Over","You Win");
-                            resumeBtn.IsEnabled = false;
-                        }
+                        PrintMessage("Game Over", "You Win");
+                        resumeBtn.IsEnabled = false;
                     }
                 }
+            }
+            if(brd.SameLocation(brd.Player,brd.Power, out target))
+            {
+                cnvs.Children.Remove(target.Shape);
+                brd.Power.Remove(target);
+                brd.Player.Lives++;
+            }
             enemyCountTbl.Text = $"Enemies : {brd.Enemies.Count}";
         }
 
@@ -166,9 +181,21 @@ namespace DodgeGame
             }
         }
 
+        private void PowerMove_Tick(object sender, object e)
+        {
+            PowerMove();
+        }
+        void PowerMove()
+        {
+            foreach(PowerUp power in brd.Power)
+            {
+                brd.SetLoc(power);
+            }
+        }
+
         private void PrintMessage(string head, string text = "")
         {
-            timer.Stop();
+            timer.ForEach(t => t.Stop());
             isUp = isDown = isLeft = isRight = false;
 
             Window.Current.CoreWindow.KeyDown -= CoreWindow_KeyDown;
@@ -176,7 +203,7 @@ namespace DodgeGame
 
             TextBlock menuTextTbl = (TextBlock)MasterGrid.FindName("menuTextTbl");
             Grid menuGrid = (Grid)MasterGrid.FindName("menuGrid");
-            menuTextTbl.Text = head + ((text == "") ? "" : "\n"+ text);
+            menuTextTbl.Text = head + ((text == "") ? "" : "\n" + text);
             menuGrid.Visibility = Visibility.Visible;
         }
 
@@ -187,13 +214,20 @@ namespace DodgeGame
             StorageFolder storageFolder = ApplicationData.Current.LocalFolder;
             StorageFile sampleFile = await storageFolder.CreateFileAsync("saveGame.txt", CreationCollisionOption.ReplaceExisting);
 
+            foreach (PowerUp p in brd.Power)
+            {
+                await FileIO.AppendTextAsync(sampleFile, $"{p.Data}{Environment.NewLine}");
+            }
+
+            await FileIO.AppendTextAsync(sampleFile, "#");
+
             foreach (Enemy enemy in brd.Enemies)
             {
                 await FileIO.AppendTextAsync(sampleFile, $"{enemy.Data}{Environment.NewLine}");
             }
 
             await FileIO.AppendTextAsync(sampleFile, $"{brd.Player.Data}|{brd.Player.Lives}");
-            PrintMessage("Game Saved","Press Resume to continue");
+            PrintMessage("Game Saved", "Press Resume to continue");
         }
 
         public async void LoadGame()
@@ -202,16 +236,29 @@ namespace DodgeGame
             StorageFile sampleFile = await storageFolder.GetFileAsync("saveGame.txt");
             string allLines = await FileIO.ReadTextAsync(sampleFile);
             ReadFile(allLines);
-            PrintMessage("Game Loaded","Press Resume to continue");
+            PrintMessage("Game Loaded", "Press Resume to continue");
         }
 
         private void ReadFile(string allLines)
         {
-            string[] lines = allLines.Split("\n");
+            string[] halfString = allLines.Split("#");
+            string[] powerLines = halfString[0].Split("\n");
+            
+            cnvs.Children.Clear();
+            brd.Power.Clear();
+            brd.Enemies.Clear();
+
+            for (int i = 0; i < powerLines.Length- 1; i++)
+            {
+                string[] powerLine = powerLines[i].Split("|");
+                PowerUp power1 = new PowerUp();
+                ReCreatePiece(power1, powerLine);
+                brd.Power.Add(power1); 
+            }
+
+            string[] lines = halfString[1].Split("\n");
             string[] line;
 
-            cnvs.Children.Clear();
-            brd.Enemies.Clear();
 
             for (int i = 0; i < lines.Length - 1; i++)
             {

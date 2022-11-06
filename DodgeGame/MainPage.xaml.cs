@@ -38,7 +38,8 @@ namespace DodgeGame
 
             startGrid.Visibility = Visibility.Collapsed;
             logic = new Logic(MasterGrid);
-            logic.timer.Stop();
+            logic.timer.ForEach(t => t.Stop());
+
         }
 
         private void loadBtn_Tapped(object sender, TappedRoutedEventArgs e)
@@ -66,7 +67,8 @@ namespace DodgeGame
         {
             menuTextTbl.Text = "";
             resumeBtn.Content = "Resume";
-            logic.timer.Start();
+            logic.timer.ForEach(t => t.Start());
+
             logic.ConnectKeyBoardEvent();
             menuGrid.Visibility = Visibility.Collapsed;
         }
@@ -86,7 +88,8 @@ namespace DodgeGame
         private void SaveSetings_Tapped(object sender, TappedRoutedEventArgs e)
         {
             logic.Init();
-            logic.timer.Stop();
+            logic.timer.ForEach(t => t.Stop());
+
 
             if (int.TryParse(enemyNumberTbx.Text, out numOfEnemies) && numOfEnemies > 1 && numOfEnemies <= 20)
             {

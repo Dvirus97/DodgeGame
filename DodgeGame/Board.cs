@@ -10,12 +10,21 @@ namespace DodgeGame
     internal class Board
     {
         public Player Player { get; set; }
-        public List<Enemy> Enemies { get; set; }
+        public List<GamePiece> Enemies { get; set; }
+        public List<GamePiece> Power { get; set; }
         public Canvas cnvs { get; set; }
         public Board(Grid MasterGrid)
         {
-            cnvs = (Canvas)MasterGrid.FindName("cnvs");
-            Enemies = new List<Enemy>();
+            //cnvs = (Canvas)MasterGrid.FindName("cnvs");
+            cnvs = MasterGrid.FindName("cnvs") as Canvas;
+            Power = new List<GamePiece>();
+            Enemies = new List<GamePiece>();
+            for (int i = 0; i < 5; i++)
+            {
+                PowerUp power1 = new PowerUp();
+                CreatePiece(power1);
+                Power.Add(power1);
+            }
             Player = new Player(MasterGrid);
             CreatePiece(Player);
         }
@@ -31,7 +40,7 @@ namespace DodgeGame
         private void CreatePiece(GamePiece piece)
         {
             SetLoc(piece);
-            if (SameLocation(piece, out Enemy e))
+            if (SameLocation(piece, Enemies, out GamePiece a) || SameLocation(piece, Power, out a))
             {
                 CreatePiece(piece);
             }
@@ -41,26 +50,26 @@ namespace DodgeGame
             }
         }
 
-        public bool SameLocation(GamePiece piece, out Enemy enemy1)
+        public bool SameLocation(GamePiece piece, List<GamePiece> gamePieces, out GamePiece target)
         {
-            enemy1 = null;
-            foreach (Enemy enemy in Enemies)
+            target = null;
+            foreach (GamePiece gamePiece in gamePieces)
             {
-                if (piece == enemy)
+                if (piece == gamePiece)
                 {
                     continue;
                 }
-                if (Math.Abs(enemy.X - piece.X) < piece.Shape.Width * 0.65 &&
-                    Math.Abs(enemy.Y - piece.Y) < piece.Shape.Height * 0.65)
+                if (Math.Abs(gamePiece.X - piece.X) < piece.Shape.Width * 0.65 &&
+                    Math.Abs(gamePiece.Y - piece.Y) < piece.Shape.Height * 0.65)
                 {
-                    enemy1 = enemy;
+                    target = gamePiece;
                     return true;
                 }
             }
             return false;
         }
 
-        private void SetLoc(GamePiece piece)
+        public void SetLoc(GamePiece piece)
         {
             Random rnd = new Random();
 

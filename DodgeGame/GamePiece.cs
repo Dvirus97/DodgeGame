@@ -43,8 +43,8 @@ namespace DodgeGame
         public GamePiece()
         {
             Shape = new Image();
-            Shape.Width = 50;
-            Shape.Height = 50; 
+            Shape.Width = 30;
+            Shape.Height = 30; 
         }
     }
 }
